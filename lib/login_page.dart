@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'owner_page.dart';
+import 'package:walet_app/owner_page.dart';
+import 'package:walet_app/manager_page.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -25,7 +26,7 @@ class _LoginPageState extends State<LoginPage> {
       final query = await FirebaseFirestore.instance
           .collection('users')
           .where('username', isEqualTo: _usernameController.text.trim())
-          .where('password', isEqualTo: _passwordController.text)
+          .where('password', isEqualTo: _passwordController.text.trim())
           .limit(1)
           .get();
 
@@ -40,7 +41,7 @@ class _LoginPageState extends State<LoginPage> {
         if (role == 'owner') {
           Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const OwnerPage()),);
         } else if (role == 'manager') {
-          Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const OwnerPage()),);
+          Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const ManagerPage()),);
         } else {
           setState(() {
             _error = 'Role tidak dikenali';
