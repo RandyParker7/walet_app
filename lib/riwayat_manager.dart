@@ -5,8 +5,9 @@ import 'input_hasil.dart';
 class RiwayatManagerPage extends StatelessWidget {
   final String id;
   final Map<String, dynamic> data;
+  final String username;
 
-  const RiwayatManagerPage({super.key, required this.id, required this.data});
+  const RiwayatManagerPage({super.key, required this.id, required this.data, required this.username});
 
   String _formatDate(dynamic timestamp) {
     if (timestamp == null) return '-';
@@ -42,7 +43,7 @@ class RiwayatManagerPage extends StatelessWidget {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (_) => InputHasilCuciPage(partaiId: id),
+                    builder: (_) => InputHasilCuciPage(partaiId: id, username: username),
                   ),
                 );
               },

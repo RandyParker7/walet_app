@@ -41,7 +41,7 @@ class _LoginPageState extends State<LoginPage> {
         if (role == 'owner') {
           Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const OwnerPage()),);
         } else if (role == 'manager') {
-          Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const ManagerPage()),);
+          Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => ManagerPage(username: _usernameController.text.trim())),);
         } else {
           setState(() {
             _error = 'Role tidak dikenali';

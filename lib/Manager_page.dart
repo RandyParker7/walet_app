@@ -4,7 +4,9 @@ import 'package:walet_app/login_page.dart';
 import 'riwayat_manager.dart';
 
 class ManagerPage extends StatelessWidget {
-  const ManagerPage({super.key});
+  final String username;
+
+  const ManagerPage({super.key, required this.username});
 
   Stream<QuerySnapshot> get _unprocessedPartaiStream {
     return FirebaseFirestore.instance
@@ -70,7 +72,7 @@ class ManagerPage extends StatelessWidget {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => RiwayatManagerPage(id: doc.id, data: data),
+                        builder: (_) => RiwayatManagerPage(id: doc.id, data: data, username: username),
                       ),
                     );
                   },
