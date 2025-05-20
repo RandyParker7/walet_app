@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:walet_app/manager_list.dart';
 import 'input_partai.dart';
 import 'riwayat_owner.dart';
 import 'package:walet_app/login_page.dart';
@@ -71,6 +72,15 @@ class _WalletListScreenState extends State<WalletListScreen> {
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.person, color: Colors.white),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const ManagerListPage()),
+              );
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.add, color: Colors.white),
             onPressed: () {
