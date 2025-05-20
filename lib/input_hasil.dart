@@ -3,8 +3,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 class InputHasilCuciPage extends StatefulWidget {
   final String partaiId;
+  final String username;
 
-  const InputHasilCuciPage({super.key, required this.partaiId});
+  const InputHasilCuciPage({super.key, required this.partaiId, required this.username});
 
   @override
   State<InputHasilCuciPage> createState() => _InputHasilCuciPageState();
@@ -54,6 +55,7 @@ class _InputHasilCuciPageState extends State<InputHasilCuciPage> {
           .doc(widget.partaiId)
           .update({
         'hasil_cuci': hasilCuci,
+        'manager_username': widget.username,
         'status': 'Sudah Diproses',
         'updated_at': Timestamp.now(),
       });

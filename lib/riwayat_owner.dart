@@ -55,6 +55,7 @@ class RiwayatOwnerPage extends StatelessWidget {
                   'Berat Gerinda': hasilCuci['gerinda'],
                   'Berat Karatan': hasilCuci['karatan'],
                   'Tanggal Selesai Pencucian': _formatDate(data['updated_at']),
+                  'Manager': data['manager_username'] ?? '-',
                 },
               ),
           ],
