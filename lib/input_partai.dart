@@ -30,22 +30,18 @@ class _InputPartaiPageState extends State<InputPartaiPage> {
       final namaPartai = _namaPartaiController.text.trim();
       final namaBahan = _namaBahanController.text.trim();
       final beratAwal = double.tryParse(_beratAwalController.text.trim());
-      double pengurangan;
 
-      if (beratAwal != null) {
-        // Jika pengurangan tidak diisi, set nilai pengurangan ke 10% dari beratAwal
-        pengurangan = double.tryParse(_penguranganController.text.trim()) ?? beratAwal * 0.10;
-      } else {
-        pengurangan = 0; // Jika beratAwal tidak valid, set pengurangan menjadi 0
-      }
-
-      if (namaPartai.isEmpty || namaBahan.isEmpty || beratAwal == null || pengurangan == null) {
+      if (namaPartai.isEmpty || namaBahan.isEmpty || beratAwal == null) {
         setState(() {
           _error = 'Mohon isi semua data dengan benar';
         });
         return;
       }
 
+      // Ambil persen pengurangan, default 10%
+      final penguranganPersen =
+          double.tryParse(_penguranganController.text.trim()) ?? 10;
+      final pengurangan = beratAwal * (penguranganPersen / 100);
       final beratAwalKering = beratAwal - pengurangan;
 
       await FirebaseFirestore.instance.collection('partai').add({
@@ -62,7 +58,7 @@ class _InputPartaiPageState extends State<InputPartaiPage> {
         _namaPartaiController.clear();
         _namaBahanController.clear();
         _beratAwalController.clear();
-        _penguranganController.clear();
+        _penguranganController.text = '10';
       });
     } catch (e) {
       setState(() {

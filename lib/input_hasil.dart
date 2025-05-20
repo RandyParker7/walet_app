@@ -30,13 +30,23 @@ class _InputHasilCuciPageState extends State<InputHasilCuciPage> {
     });
 
     try {
+      final kikis = double.tryParse(_kikisController.text.trim()) ?? 0;
+      final bubuk = double.tryParse(_bubukController.text.trim()) ?? 0;
+      final gerinda = double.tryParse(_gerindaController.text.trim()) ?? 0;
+      final karatan = double.tryParse(_karatanController.text.trim()) ?? 0;
+      final hancuran = double.tryParse(_hancuranController.text.trim()) ?? 0;
+      final beratBersih = double.tryParse(_beratBersihController.text.trim()) ?? 0;
+
+      final total = kikis + bubuk + gerinda + karatan + hancuran;
+
       final hasilCuci = {
-        'berat_bersih': double.tryParse(_beratBersihController.text.trim()) ?? 0,
-        'kikis': double.tryParse(_kikisController.text.trim()) ?? 0,
-        'bubuk': double.tryParse(_bubukController.text.trim()) ?? 0,
-        'gerinda': double.tryParse(_gerindaController.text.trim()) ?? 0,
-        'karatan': double.tryParse(_karatanController.text.trim()) ?? 0,
-        'hancuran': double.tryParse(_hancuranController.text.trim()) ?? 0,
+        'berat_bersih': beratBersih,
+        'kikis': kikis,
+        'bubuk': bubuk,
+        'gerinda': gerinda,
+        'karatan': karatan,
+        'hancuran': hancuran,
+        'total': total,
       };
 
       await FirebaseFirestore.instance
@@ -57,6 +67,11 @@ class _InputHasilCuciPageState extends State<InputHasilCuciPage> {
         _karatanController.clear();
         _hancuranController.clear();
       });
+
+      await Future.delayed(const Duration(seconds: 1));
+      Navigator.pop(context);
+      Navigator.pop(context);
+
     } catch (e) {
       setState(() {
         _error = 'Terjadi kesalahan: $e';
