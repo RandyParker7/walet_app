@@ -54,6 +54,7 @@ class _WalletListScreenState extends State<WalletListScreen> {
       default:
         return collection.snapshots();
     }
+  }
 
   // Filter the documents by date after they are retrieved
   List<QueryDocumentSnapshot> _filterDocumentsByDate(List<QueryDocumentSnapshot> docs) {
@@ -64,17 +65,15 @@ class _WalletListScreenState extends State<WalletListScreen> {
     return docs.where((doc) {
       final data = doc.data() as Map<String, dynamic>;
       final docDate = (data['created_at'] as Timestamp).toDate();
-      
+
       if (_startDate != null && _endDate != null) {
-        // Set end date to end of day
         final endOfDay = DateTime(_endDate!.year, _endDate!.month, _endDate!.day, 23, 59, 59);
-        return docDate.isAfter(_startDate!) && docDate.isBefore(endOfDay);
+        return !docDate.isBefore(_startDate!) && !docDate.isAfter(endOfDay);
       } else if (_startDate != null) {
-        return docDate.isAfter(_startDate!);
+        return !docDate.isBefore(_startDate!);
       } else if (_endDate != null) {
-        // Set end date to end of day
         final endOfDay = DateTime(_endDate!.year, _endDate!.month, _endDate!.day, 23, 59, 59);
-        return docDate.isBefore(endOfDay);
+        return !docDate.isAfter(endOfDay);
       }
       return true;
     }).toList();
@@ -104,18 +103,16 @@ class _WalletListScreenState extends State<WalletListScreen> {
             onPressed: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (_) => const ManagerListPage()), // Navigate to Manager List Page
+                MaterialPageRoute(builder: (_) => const ManagerListPage()),
               );
             },
           ),
-          
           IconButton(
             icon: const Icon(Icons.filter_alt, color: Colors.white),
             onPressed: () {
-              _showDateFilterDialog(); // Trigger the date filter dialog
+              _showDateFilterDialog();
             },
           ),
-          
           IconButton(
             icon: const Icon(Icons.add, color: Colors.white),
             onPressed: () {
@@ -143,9 +140,8 @@ class _WalletListScreenState extends State<WalletListScreen> {
                   return const Center(child: Text('Tidak ada data wallet'));
                 }
 
-                // Apply date filtering
                 final filteredDocs = _filterDocumentsByDate(snapshot.data!.docs);
-                
+
                 if (filteredDocs.isEmpty) {
                   return const Center(child: Text('Tidak ada data wallet dalam rentang tanggal yang dipilih'));
                 }
@@ -212,9 +208,9 @@ class _WalletListScreenState extends State<WalletListScreen> {
                   builder: (context, setTileState) {
                     return ListTile(
                       title: const Text('Tanggal Mulai'),
-                      subtitle: Text(_startDate != null 
-                        ? DateFormat('dd/MM/yyyy').format(_startDate!) 
-                        : 'Pilih tanggal'),
+                      subtitle: Text(_startDate != null
+                          ? DateFormat('dd/MM/yyyy').format(_startDate!)
+                          : 'Pilih tanggal'),
                       trailing: const Icon(Icons.calendar_today),
                       onTap: () async {
                         final picked = await showDatePicker(
@@ -228,21 +224,20 @@ class _WalletListScreenState extends State<WalletListScreen> {
                             _startDate = picked;
                             _isFilteringByDate = true;
                           });
-                          // Update dialog UI immediately
                           setTileState(() {});
                           setDialogState(() {});
                         }
                       },
                     );
-                  }
+                  },
                 ),
                 StatefulBuilder(
                   builder: (context, setTileState) {
                     return ListTile(
                       title: const Text('Tanggal Akhir'),
-                      subtitle: Text(_endDate != null 
-                        ? DateFormat('dd/MM/yyyy').format(_endDate!) 
-                        : 'Pilih tanggal'),
+                      subtitle: Text(_endDate != null
+                          ? DateFormat('dd/MM/yyyy').format(_endDate!)
+                          : 'Pilih tanggal'),
                       trailing: const Icon(Icons.calendar_today),
                       onTap: () async {
                         final picked = await showDatePicker(
@@ -256,13 +251,12 @@ class _WalletListScreenState extends State<WalletListScreen> {
                             _endDate = picked;
                             _isFilteringByDate = true;
                           });
-                          // Update dialog UI immediately
                           setTileState(() {});
                           setDialogState(() {});
                         }
                       },
                     );
-                  }
+                  },
                 ),
               ],
             ),
@@ -276,44 +270,22 @@ class _WalletListScreenState extends State<WalletListScreen> {
               TextButton(
                 onPressed: () {
                   Navigator.of(context).pop();
-                  // We don't need to set _isFilteringByDate here anymore
-                  // as it's already set when dates are picked
                   setState(() {});
                 },
                 child: const Text('Terapkan'),
               ),
             ],
           );
-        }
+        },
       ),
     );
   }
 
   void _showAddConfirmation() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Konfirmasi'),
-        content: const Text('Apakah Anda yakin ingin menambahkan partai baru?'),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-            },
-            child: const Text('Tidak'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const InputPartaiPage()),
-              );
-            },
-            child: const Text('Ya'),
-          ),
-        ],
-      ),
+    // Removed alert dialog as per user request
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const InputPartaiPage()),
     );
   }
 
