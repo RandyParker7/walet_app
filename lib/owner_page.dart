@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'input_partai.dart';
+import 'riwayat_owner.dart';
+import 'package:walet_app/login_page.dart';
+import 'package:intl/intl.dart';
 
-void main() {
-  runApp(const WalletApp());
-}
-
-class WalletApp extends StatelessWidget {
-  const WalletApp({super.key});
+class OwnerPage extends StatelessWidget {
+  const OwnerPage({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -24,18 +25,6 @@ class WalletApp extends StatelessWidget {
   }
 }
 
-class WalletParty {
-  final String name;
-  final DateTime date;
-  final bool isProcessed;
-
-  WalletParty({
-    required this.name,
-    required this.date,
-    required this.isProcessed,
-  });
-}
-
 class WalletListScreen extends StatefulWidget {
   const WalletListScreen({super.key});
 
@@ -43,36 +32,58 @@ class WalletListScreen extends StatefulWidget {
   State<WalletListScreen> createState() => _WalletListScreenState();
 }
 
+enum FilterStatus { all, processed, unprocessed }
+
 class _WalletListScreenState extends State<WalletListScreen> {
-  final List<WalletParty> _wallets = [
-    WalletParty(
-      name: 'Partai 42',
-      date: DateTime(2024, 10, 30),
-      isProcessed: true,
-    ),
-    WalletParty(
-      name: 'Partai 7',
-      date: DateTime(2024, 10, 29),
-      isProcessed: true,
-    ),
-    WalletParty(
-      name: 'Partai 18',
-      date: DateTime(2024, 10, 27),
-      isProcessed: false,
-    ),
-  ];
-
   FilterStatus _currentFilter = FilterStatus.all;
+  DateTime? _startDate;
+  DateTime? _endDate;
+  bool _isFilteringByDate = false;
 
-  List<WalletParty> get _filteredWallets {
+  Stream<QuerySnapshot> get _walletStream {
+    Query collection = FirebaseFirestore.instance
+        .collection('partai')
+        .orderBy('created_at', descending: true);
+
+    // Apply status filter
     switch (_currentFilter) {
       case FilterStatus.processed:
-        return _wallets.where((wallet) => wallet.isProcessed).toList();
+        collection = collection.where('status', isEqualTo: 'Sudah Diproses');
+        break;
       case FilterStatus.unprocessed:
-        return _wallets.where((wallet) => !wallet.isProcessed).toList();
+        collection = collection.where('status', isEqualTo: 'Belum Diproses');
+        break;
       default:
-        return _wallets;
+        // No additional filter for 'all'
+        break;
     }
+
+    return collection.snapshots();
+  }
+
+  // Filter the documents by date after they are retrieved
+  List<QueryDocumentSnapshot> _filterDocumentsByDate(List<QueryDocumentSnapshot> docs) {
+    if (!_isFilteringByDate || (_startDate == null && _endDate == null)) {
+      return docs;
+    }
+
+    return docs.where((doc) {
+      final data = doc.data() as Map<String, dynamic>;
+      final docDate = (data['created_at'] as Timestamp).toDate();
+      
+      if (_startDate != null && _endDate != null) {
+        // Set end date to end of day
+        final endOfDay = DateTime(_endDate!.year, _endDate!.month, _endDate!.day, 23, 59, 59);
+        return docDate.isAfter(_startDate!) && docDate.isBefore(endOfDay);
+      } else if (_startDate != null) {
+        return docDate.isAfter(_startDate!);
+      } else if (_endDate != null) {
+        // Set end date to end of day
+        final endOfDay = DateTime(_endDate!.year, _endDate!.month, _endDate!.day, 23, 59, 59);
+        return docDate.isBefore(endOfDay);
+      }
+      return true;
+    }).toList();
   }
 
   @override
@@ -80,25 +91,30 @@ class _WalletListScreenState extends State<WalletListScreen> {
     return Scaffold(
       backgroundColor: Colors.grey[100],
       appBar: AppBar(
-        leading: const BackButton(color: Colors.white),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (_) => const LoginPage()),
+            );
+          },
+        ),
         title: const Text(
           'Daftar Walet',
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-          ),
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.calendar_month, color: Colors.white),
+            icon: const Icon(Icons.filter_alt, color: Colors.white),
             onPressed: () {
-              // Calendar functionality
+              _showDateFilterDialog();
             },
           ),
           IconButton(
             icon: const Icon(Icons.add, color: Colors.white),
             onPressed: () {
-              _showAddWalletDialog();
+              _showAddConfirmation();
             },
           ),
         ],
@@ -106,18 +122,186 @@ class _WalletListScreenState extends State<WalletListScreen> {
       body: Column(
         children: [
           _buildFilterTabs(),
+          if (_isFilteringByDate) _buildDateFilterChip(),
           Expanded(
-            child: _filteredWallets.isEmpty
-                ? const Center(
-                    child: Text('Tidak ada data wallet'),
-                  )
-                : ListView.builder(
-                    itemCount: _filteredWallets.length,
-                    itemBuilder: (context, index) {
-                      final wallet = _filteredWallets[index];
-                      return _buildWalletCard(wallet);
-                    },
-                  ),
+            child: StreamBuilder<QuerySnapshot>(
+              stream: _walletStream,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                  return const Center(child: Text('Tidak ada data wallet'));
+                }
+                
+                // Apply date filtering
+                final filteredDocs = _filterDocumentsByDate(snapshot.data!.docs);
+                
+                if (filteredDocs.isEmpty) {
+                  return const Center(child: Text('Tidak ada data wallet dalam rentang tanggal yang dipilih'));
+                }
+
+                return ListView.builder(
+                  itemCount: filteredDocs.length,
+                  itemBuilder: (context, index) {
+                    final doc = filteredDocs[index];
+                    final data = doc.data() as Map<String, dynamic>;
+                    final date = (data['created_at'] as Timestamp).toDate();
+                    return _buildWalletCard(doc.id, data, date);
+                  },
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDateFilterChip() {
+    final dateFormat = DateFormat('dd/MM/yyyy');
+    String filterText = 'Filter: ';
+    if (_startDate != null && _endDate != null) {
+      filterText += '${dateFormat.format(_startDate!)} - ${dateFormat.format(_endDate!)}';
+    } else if (_startDate != null) {
+      filterText += 'Dari ${dateFormat.format(_startDate!)}';
+    } else if (_endDate != null) {
+      filterText += 'Sampai ${dateFormat.format(_endDate!)}';
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Chip(
+        backgroundColor: Colors.blue[100],
+        label: Text(
+          filterText,
+          style: TextStyle(color: Colors.blue[800]),
+        ),
+        deleteIcon: const Icon(Icons.close, size: 18),
+        onDeleted: () {
+          setState(() {
+            _startDate = null;
+            _endDate = null;
+            _isFilteringByDate = false;
+          });
+        },
+      ),
+    );
+  }
+
+  Future<void> _showDateFilterDialog() async {
+    await showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          return AlertDialog(
+            title: const Text('Filter Berdasarkan Tanggal'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                StatefulBuilder(
+                  builder: (context, setTileState) {
+                    return ListTile(
+                      title: const Text('Tanggal Mulai'),
+                      subtitle: Text(_startDate != null 
+                        ? DateFormat('dd/MM/yyyy').format(_startDate!) 
+                        : 'Pilih tanggal'),
+                      trailing: const Icon(Icons.calendar_today),
+                      onTap: () async {
+                        final picked = await showDatePicker(
+                          context: context,
+                          initialDate: _startDate ?? DateTime.now(),
+                          firstDate: DateTime(2020),
+                          lastDate: DateTime.now(),
+                        );
+                        if (picked != null) {
+                          setState(() {
+                            _startDate = picked;
+                            _isFilteringByDate = true;
+                          });
+                          // Update dialog UI immediately
+                          setTileState(() {});
+                          setDialogState(() {});
+                        }
+                      },
+                    );
+                  }
+                ),
+                StatefulBuilder(
+                  builder: (context, setTileState) {
+                    return ListTile(
+                      title: const Text('Tanggal Akhir'),
+                      subtitle: Text(_endDate != null 
+                        ? DateFormat('dd/MM/yyyy').format(_endDate!) 
+                        : 'Pilih tanggal'),
+                      trailing: const Icon(Icons.calendar_today),
+                      onTap: () async {
+                        final picked = await showDatePicker(
+                          context: context,
+                          initialDate: _endDate ?? DateTime.now(),
+                          firstDate: DateTime(2020),
+                          lastDate: DateTime.now(),
+                        );
+                        if (picked != null) {
+                          setState(() {
+                            _endDate = picked;
+                            _isFilteringByDate = true;
+                          });
+                          // Update dialog UI immediately
+                          setTileState(() {});
+                          setDialogState(() {});
+                        }
+                      },
+                    );
+                  }
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                },
+                child: const Text('Batal'),
+              ),
+              TextButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  // We don't need to set _isFilteringByDate here anymore
+                  // as it's already set when dates are picked
+                  setState(() {});
+                },
+                child: const Text('Terapkan'),
+              ),
+            ],
+          );
+        }
+      ),
+    );
+  }
+
+  void _showAddConfirmation() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Konfirmasi'),
+        content: const Text('Apakah Anda yakin ingin menambahkan partai baru?'),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+            },
+            child: const Text('Tidak'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const InputPartaiPage()),
+              );
+            },
+            child: const Text('Ya'),
           ),
         ],
       ),
@@ -134,6 +318,7 @@ class _WalletListScreenState extends State<WalletListScreen> {
               title: 'All',
               isActive: _currentFilter == FilterStatus.all,
               onTap: () => _setFilter(FilterStatus.all),
+              color: Colors.blue,
             ),
           ),
           const SizedBox(width: 8),
@@ -187,47 +372,27 @@ class _WalletListScreenState extends State<WalletListScreen> {
     );
   }
 
-  Widget _buildWalletCard(WalletParty wallet) {
+  Widget _buildWalletCard(String id, Map<String, dynamic> data, DateTime date) {
+    final status = data['status'] ?? 'Belum Diproses';
+
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         leading: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text(
-              wallet.date.day.toString(),
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 18,
-              ),
-            ),
-            Text(
-              _getMonthAbbreviation(wallet.date.month),
-              style: const TextStyle(
-                fontSize: 12,
-                color: Colors.grey,
-              ),
-            ),
-            Text(
-              wallet.date.year.toString(),
-              style: const TextStyle(
-                fontSize: 10,
-                color: Colors.grey,
-              ),
-            ),
+            Text('${date.day}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            Text(_getMonthAbbreviation(date.month),
+                style: const TextStyle(fontSize: 12, color: Colors.grey)),
+            Text('${date.year}', style: const TextStyle(fontSize: 10, color: Colors.grey)),
           ],
         ),
         title: Text(
-          wallet.name,
-          style: const TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 16,
-          ),
+          data['nama_partai'] ?? 'Tanpa Nama',
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
         ),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
@@ -235,15 +400,13 @@ class _WalletListScreenState extends State<WalletListScreen> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
               decoration: BoxDecoration(
-                color: wallet.isProcessed
-                    ? Colors.green[100]
-                    : Colors.red[100],
+                color: status == 'Sudah Diproses' ? Colors.green[100] : Colors.red[100],
                 borderRadius: BorderRadius.circular(15),
               ),
               child: Text(
-                wallet.isProcessed ? 'Sudah Diproses' : 'Belum Diproses',
+                status,
                 style: TextStyle(
-                  color: wallet.isProcessed ? Colors.green[700] : Colors.red[700],
+                  color: status == 'Sudah Diproses' ? Colors.green[700] : Colors.red[700],
                   fontSize: 12,
                   fontWeight: FontWeight.bold,
                 ),
@@ -254,8 +417,12 @@ class _WalletListScreenState extends State<WalletListScreen> {
           ],
         ),
         onTap: () {
-          // Handle wallet item tap
-          _showWalletDetails(wallet);
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => RiwayatOwnerPage(id: id, data: data),
+            ),
+          );
         },
       ),
     );
@@ -271,114 +438,4 @@ class _WalletListScreenState extends State<WalletListScreen> {
       _currentFilter = status;
     });
   }
-
-  void _showAddWalletDialog() {
-    final nameController = TextEditingController();
-    bool isProcessed = false;
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Tambah Wallet Baru'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: nameController,
-              decoration: const InputDecoration(
-                labelText: 'Nama Partai',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                const Text('Status: '),
-                Switch(
-                  value: isProcessed,
-                  onChanged: (value) {
-                    setState(() {
-                      isProcessed = value;
-                    });
-                  },
-                ),
-                Text(isProcessed ? 'Sudah Diproses' : 'Belum Diproses'),
-              ],
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Batal'),
-          ),
-          TextButton(
-            onPressed: () {
-              if (nameController.text.isNotEmpty) {
-                setState(() {
-                  _wallets.insert(
-                    0,
-                    WalletParty(
-                      name: nameController.text,
-                      date: DateTime.now(),
-                      isProcessed: isProcessed,
-                    ),
-                  );
-                });
-                Navigator.pop(context);
-              }
-            },
-            child: const Text('Simpan'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showWalletDetails(WalletParty wallet) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(wallet.name),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Tanggal: ${wallet.date.day}/${wallet.date.month}/${wallet.date.year}'),
-            const SizedBox(height: 8),
-            Text('Status: ${wallet.isProcessed ? 'Sudah Diproses' : 'Belum Diproses'}'),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Tutup'),
-          ),
-          if (!wallet.isProcessed)
-            TextButton(
-              onPressed: () {
-                setState(() {
-                  final index = _wallets.indexOf(wallet);
-                  if (index != -1) {
-                    _wallets[index] = WalletParty(
-                      name: wallet.name,
-                      date: wallet.date,
-                      isProcessed: true,
-                    );
-                  }
-                });
-                Navigator.pop(context);
-              },
-              child: const Text('Proses Sekarang'),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-enum FilterStatus {
-  all,
-  processed,
-  unprocessed,
 }
