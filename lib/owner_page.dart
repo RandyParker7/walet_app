@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:intl/intl.dart';
 import 'package:walet_app/manager_list.dart';
 import 'input_partai.dart';
 import 'riwayat_owner.dart';
 import 'package:walet_app/login_page.dart';
-
 
 class OwnerPage extends StatelessWidget {
   const OwnerPage({super.key});
@@ -37,9 +37,12 @@ enum FilterStatus { all, processed, unprocessed }
 
 class _WalletListScreenState extends State<WalletListScreen> {
   FilterStatus _currentFilter = FilterStatus.all;
+  DateTime? _startDate;
+  DateTime? _endDate;
+  bool _isFilteringByDate = false;
 
   Stream<QuerySnapshot> get _walletStream {
-    final collection = FirebaseFirestore.instance
+    Query collection = FirebaseFirestore.instance
         .collection('partai')
         .orderBy('created_at', descending: true);
 
@@ -51,6 +54,30 @@ class _WalletListScreenState extends State<WalletListScreen> {
       default:
         return collection.snapshots();
     }
+
+  // Filter the documents by date after they are retrieved
+  List<QueryDocumentSnapshot> _filterDocumentsByDate(List<QueryDocumentSnapshot> docs) {
+    if (!_isFilteringByDate || (_startDate == null && _endDate == null)) {
+      return docs;
+    }
+
+    return docs.where((doc) {
+      final data = doc.data() as Map<String, dynamic>;
+      final docDate = (data['created_at'] as Timestamp).toDate();
+      
+      if (_startDate != null && _endDate != null) {
+        // Set end date to end of day
+        final endOfDay = DateTime(_endDate!.year, _endDate!.month, _endDate!.day, 23, 59, 59);
+        return docDate.isAfter(_startDate!) && docDate.isBefore(endOfDay);
+      } else if (_startDate != null) {
+        return docDate.isAfter(_startDate!);
+      } else if (_endDate != null) {
+        // Set end date to end of day
+        final endOfDay = DateTime(_endDate!.year, _endDate!.month, _endDate!.day, 23, 59, 59);
+        return docDate.isBefore(endOfDay);
+      }
+      return true;
+    }).toList();
   }
 
   @override
@@ -77,13 +104,22 @@ class _WalletListScreenState extends State<WalletListScreen> {
             onPressed: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (_) => const ManagerListPage()),
+                MaterialPageRoute(builder: (_) => const ManagerListPage()), // Navigate to Manager List Page
               );
             },
           ),
+          
+          IconButton(
+            icon: const Icon(Icons.filter_alt, color: Colors.white),
+            onPressed: () {
+              _showDateFilterDialog(); // Trigger the date filter dialog
+            },
+          ),
+          
           IconButton(
             icon: const Icon(Icons.add, color: Colors.white),
             onPressed: () {
+              _showAddConfirmation();
               Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => const InputPartaiPage()),
@@ -95,6 +131,7 @@ class _WalletListScreenState extends State<WalletListScreen> {
       body: Column(
         children: [
           _buildFilterTabs(),
+          if (_isFilteringByDate) _buildDateFilterChip(),
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
               stream: _walletStream,
@@ -105,12 +142,18 @@ class _WalletListScreenState extends State<WalletListScreen> {
                 if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
                   return const Center(child: Text('Tidak ada data wallet'));
                 }
-                final wallets = snapshot.data!.docs;
+
+                // Apply date filtering
+                final filteredDocs = _filterDocumentsByDate(snapshot.data!.docs);
+                
+                if (filteredDocs.isEmpty) {
+                  return const Center(child: Text('Tidak ada data wallet dalam rentang tanggal yang dipilih'));
+                }
 
                 return ListView.builder(
-                  itemCount: wallets.length,
+                  itemCount: filteredDocs.length,
                   itemBuilder: (context, index) {
-                    final doc = wallets[index];
+                    final doc = filteredDocs[index];
                     final data = doc.data() as Map<String, dynamic>;
                     final date = (data['created_at'] as Timestamp).toDate();
                     return _buildWalletCard(doc.id, data, date);
@@ -118,6 +161,156 @@ class _WalletListScreenState extends State<WalletListScreen> {
                 );
               },
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDateFilterChip() {
+    final dateFormat = DateFormat('dd/MM/yyyy');
+    String filterText = 'Filter: ';
+    if (_startDate != null && _endDate != null) {
+      filterText += '${dateFormat.format(_startDate!)} - ${dateFormat.format(_endDate!)}';
+    } else if (_startDate != null) {
+      filterText += 'Dari ${dateFormat.format(_startDate!)}';
+    } else if (_endDate != null) {
+      filterText += 'Sampai ${dateFormat.format(_endDate!)}';
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Chip(
+        backgroundColor: Colors.blue[100],
+        label: Text(
+          filterText,
+          style: TextStyle(color: Colors.blue[800]),
+        ),
+        deleteIcon: const Icon(Icons.close, size: 18),
+        onDeleted: () {
+          setState(() {
+            _startDate = null;
+            _endDate = null;
+            _isFilteringByDate = false;
+          });
+        },
+      ),
+    );
+  }
+
+  Future<void> _showDateFilterDialog() async {
+    await showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          return AlertDialog(
+            title: const Text('Filter Berdasarkan Tanggal'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                StatefulBuilder(
+                  builder: (context, setTileState) {
+                    return ListTile(
+                      title: const Text('Tanggal Mulai'),
+                      subtitle: Text(_startDate != null 
+                        ? DateFormat('dd/MM/yyyy').format(_startDate!) 
+                        : 'Pilih tanggal'),
+                      trailing: const Icon(Icons.calendar_today),
+                      onTap: () async {
+                        final picked = await showDatePicker(
+                          context: context,
+                          initialDate: _startDate ?? DateTime.now(),
+                          firstDate: DateTime(2020),
+                          lastDate: DateTime.now(),
+                        );
+                        if (picked != null) {
+                          setState(() {
+                            _startDate = picked;
+                            _isFilteringByDate = true;
+                          });
+                          // Update dialog UI immediately
+                          setTileState(() {});
+                          setDialogState(() {});
+                        }
+                      },
+                    );
+                  }
+                ),
+                StatefulBuilder(
+                  builder: (context, setTileState) {
+                    return ListTile(
+                      title: const Text('Tanggal Akhir'),
+                      subtitle: Text(_endDate != null 
+                        ? DateFormat('dd/MM/yyyy').format(_endDate!) 
+                        : 'Pilih tanggal'),
+                      trailing: const Icon(Icons.calendar_today),
+                      onTap: () async {
+                        final picked = await showDatePicker(
+                          context: context,
+                          initialDate: _endDate ?? DateTime.now(),
+                          firstDate: DateTime(2020),
+                          lastDate: DateTime.now(),
+                        );
+                        if (picked != null) {
+                          setState(() {
+                            _endDate = picked;
+                            _isFilteringByDate = true;
+                          });
+                          // Update dialog UI immediately
+                          setTileState(() {});
+                          setDialogState(() {});
+                        }
+                      },
+                    );
+                  }
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                },
+                child: const Text('Batal'),
+              ),
+              TextButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  // We don't need to set _isFilteringByDate here anymore
+                  // as it's already set when dates are picked
+                  setState(() {});
+                },
+                child: const Text('Terapkan'),
+              ),
+            ],
+          );
+        }
+      ),
+    );
+  }
+
+  void _showAddConfirmation() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Konfirmasi'),
+        content: const Text('Apakah Anda yakin ingin menambahkan partai baru?'),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+            },
+            child: const Text('Tidak'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const InputPartaiPage()),
+              );
+            },
+            child: const Text('Ya'),
           ),
         ],
       ),
