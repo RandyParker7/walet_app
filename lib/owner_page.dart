@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:intl/intl.dart';
+import 'package:walet_app/manager_list.dart';
 import 'input_partai.dart';
 import 'riwayat_owner.dart';
 import 'package:walet_app/login_page.dart';
-import 'package:intl/intl.dart';
 
 class OwnerPage extends StatelessWidget {
   const OwnerPage({super.key});
@@ -45,21 +46,14 @@ class _WalletListScreenState extends State<WalletListScreen> {
         .collection('partai')
         .orderBy('created_at', descending: true);
 
-    // Apply status filter
     switch (_currentFilter) {
       case FilterStatus.processed:
-        collection = collection.where('status', isEqualTo: 'Sudah Diproses');
-        break;
+        return collection.where('status', isEqualTo: 'Sudah Diproses').snapshots();
       case FilterStatus.unprocessed:
-        collection = collection.where('status', isEqualTo: 'Belum Diproses');
-        break;
+        return collection.where('status', isEqualTo: 'Belum Diproses').snapshots();
       default:
-        // No additional filter for 'all'
-        break;
+        return collection.snapshots();
     }
-
-    return collection.snapshots();
-  }
 
   // Filter the documents by date after they are retrieved
   List<QueryDocumentSnapshot> _filterDocumentsByDate(List<QueryDocumentSnapshot> docs) {
@@ -106,15 +100,30 @@ class _WalletListScreenState extends State<WalletListScreen> {
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.filter_alt, color: Colors.white),
+            icon: const Icon(Icons.person, color: Colors.white),
             onPressed: () {
-              _showDateFilterDialog();
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const ManagerListPage()), // Navigate to Manager List Page
+              );
             },
           ),
+          
+          IconButton(
+            icon: const Icon(Icons.filter_alt, color: Colors.white),
+            onPressed: () {
+              _showDateFilterDialog(); // Trigger the date filter dialog
+            },
+          ),
+          
           IconButton(
             icon: const Icon(Icons.add, color: Colors.white),
             onPressed: () {
               _showAddConfirmation();
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const InputPartaiPage()),
+              );
             },
           ),
         ],
@@ -133,7 +142,7 @@ class _WalletListScreenState extends State<WalletListScreen> {
                 if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
                   return const Center(child: Text('Tidak ada data wallet'));
                 }
-                
+
                 // Apply date filtering
                 final filteredDocs = _filterDocumentsByDate(snapshot.data!.docs);
                 

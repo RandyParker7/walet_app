@@ -1,52 +1,70 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:walet_app/owner_page.dart';
-import 'package:walet_app/manager_page.dart';
+import 'manager_list.dart';
 
-class LoginPage extends StatefulWidget {
-  const LoginPage({super.key});
+class AddManagerPage extends StatefulWidget {
+  const AddManagerPage({Key? key}) : super(key: key);
 
   @override
-  State<LoginPage> createState() => _LoginPageState();
+  _AddManagerPageState createState() => _AddManagerPageState();
 }
 
-class _LoginPageState extends State<LoginPage> {
-  final TextEditingController _usernameController = TextEditingController();
+class _AddManagerPageState extends State<AddManagerPage> {
+  final TextEditingController _nameController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   bool _isLoading = false;
   String? _error;
+  String? _success;
 
-  Future<void> _login() async {
+  Future<void> _addManager() async {
     setState(() {
       _isLoading = true;
       _error = null;
+      _success = null;
     });
+
+    final name = _nameController.text.trim();
+    final password = _passwordController.text.trim();
+
+    if (name.isEmpty || password.isEmpty) {
+      setState(() {
+        _error = 'Nama dan password harus diisi';
+        _isLoading = false;
+      });
+      return;
+    }
 
     try {
       final query = await FirebaseFirestore.instance
           .collection('users')
-          .where('username', isEqualTo: _usernameController.text.trim())
-          .where('password', isEqualTo: _passwordController.text.trim())
+          .where('username', isEqualTo: name)
           .limit(1)
           .get();
 
-      if (query.docs.isEmpty) {
+      if (query.docs.isNotEmpty) {
         setState(() {
-          _error = 'Username atau password salah';
+          _error = 'Nama sudah digunakan';
+          _isLoading = false;
         });
-      } else {
-        final userData = query.docs.first.data();
-        final role = userData['role'];
+        return;
+      }
 
-        if (role == 'owner') {
-          Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const OwnerPage()),);
-        } else if (role == 'manager') {
-          Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const ManagerPage()),);
-        } else {
-          setState(() {
-            _error = 'Role tidak dikenali';
-          });
-        }
+      await FirebaseFirestore.instance.collection('users').add({
+        'username': name,
+        'password': password,
+        'role': 'manager',
+      });
+
+      setState(() {
+        _success = 'Manager berhasil ditambahkan';
+        _nameController.clear();
+        _passwordController.clear();
+      });
+      // Navigate back to manager list page after adding
+      if (mounted) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const ManagerListPage()),
+        );
       }
     } catch (e) {
       setState(() {
@@ -105,19 +123,24 @@ class _LoginPageState extends State<LoginPage> {
             child: Column(
               children: [
                 const Text(
-                  'Log In',
+                  'Add Manager',
                   style: TextStyle(
                       fontSize: 28,
                       fontWeight: FontWeight.bold,
                       color: Colors.black),
                 ),
                 const SizedBox(height: 40),
-                _buildTextField('Nama', _usernameController),
+                _buildTextField('Nama', _nameController),
                 _buildTextField('Password', _passwordController, obscure: true),
                 if (_error != null)
                   Text(
                     _error!,
                     style: const TextStyle(color: Colors.red),
+                  ),
+                if (_success != null)
+                  Text(
+                    _success!,
+                    style: const TextStyle(color: Colors.green),
                   ),
                 const SizedBox(height: 12),
                 ElevatedButton(
@@ -126,7 +149,7 @@ class _LoginPageState extends State<LoginPage> {
                     padding: const EdgeInsets.symmetric(
                         horizontal: 24, vertical: 12),
                   ),
-                  onPressed: _isLoading ? null : _login,
+                  onPressed: _isLoading ? null : _addManager,
                   child: _isLoading
                       ? const CircularProgressIndicator(
                           color: Colors.white, strokeWidth: 2)
