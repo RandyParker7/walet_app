@@ -20,8 +20,8 @@ class RiwayatManagerPage extends StatelessWidget {
     final infoAwal = {
       'Nama Partai': data['nama_partai'],
       'Nama Bahan': data['nama_bahan'],
-      'Berat Awal': data['berat_awal'],
-      'Pengurangan Pengeringan': data['pengurangan_pengeringan'],
+      'Berat Awal': data['berat_awal'] != null ? '${data['berat_awal']} gram' : '-',
+      'Pengurangan Pengeringan': data['pengurangan_pengeringan'] != null ? '${data['pengurangan_pengeringan']} gram' : '-',
       'Tanggal Masuk': _formatDate(data['created_at']),
     };
 

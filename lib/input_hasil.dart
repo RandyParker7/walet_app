@@ -19,9 +19,38 @@ class _InputHasilCuciPageState extends State<InputHasilCuciPage> {
   final TextEditingController _karatanController = TextEditingController();
   final TextEditingController _hancuranController = TextEditingController();
 
+  // List to hold dynamic pencuci entries
+  List<Map<String, TextEditingController>> _pencuciControllers = [];
+
   bool _isLoading = false;
   String? _error;
   String? _success;
+
+  @override
+  void initState() {
+    super.initState();
+    // Initialize with one empty pencuci entry
+    _addPencuciEntry();
+  }
+
+  void _addPencuciEntry() {
+    setState(() {
+      _pencuciControllers.add({
+        'name': TextEditingController(),
+        'gram': TextEditingController(),
+        'pcs': TextEditingController(),
+      });
+    });
+  }
+
+  void _removePencuciEntry(int index) {
+    setState(() {
+      _pencuciControllers[index]['name']!.dispose();
+      _pencuciControllers[index]['gram']!.dispose();
+      _pencuciControllers[index]['pcs']!.dispose();
+      _pencuciControllers.removeAt(index);
+    });
+  }
 
   Future<void> _submitHasilCuci() async {
     setState(() {
@@ -40,6 +69,18 @@ class _InputHasilCuciPageState extends State<InputHasilCuciPage> {
 
       final total = kikis + bubuk + gerinda + karatan + hancuran;
 
+      // Collect pencuci entries into a list of maps
+      List<Map<String, dynamic>> pencuciList = _pencuciControllers.map((entry) {
+        final name = entry['name']!.text.trim();
+        final gram = int.tryParse(entry['gram']!.text.trim()) ?? 0;
+        final pcs = int.tryParse(entry['pcs']!.text.trim()) ?? 0;
+        return {
+          'name': name,
+          'gram': gram,
+          'pcs': pcs,
+        };
+      }).toList();
+
       final hasilCuci = {
         'berat_bersih': beratBersih,
         'kikis': kikis,
@@ -55,6 +96,7 @@ class _InputHasilCuciPageState extends State<InputHasilCuciPage> {
           .doc(widget.partaiId)
           .update({
         'hasil_cuci': hasilCuci,
+        'pencuci': pencuciList,
         'manager_username': widget.username,
         'status': 'Sudah Diproses',
         'updated_at': Timestamp.now(),
@@ -68,6 +110,12 @@ class _InputHasilCuciPageState extends State<InputHasilCuciPage> {
         _gerindaController.clear();
         _karatanController.clear();
         _hancuranController.clear();
+        // Clear all pencuci controllers
+        for (var entry in _pencuciControllers) {
+          entry['name']!.clear();
+          entry['gram']!.clear();
+          entry['pcs']!.clear();
+        }
       });
 
       await Future.delayed(const Duration(seconds: 1));
@@ -120,6 +168,60 @@ class _InputHasilCuciPageState extends State<InputHasilCuciPage> {
     );
   }
 
+  Widget _buildPencuciEntry(int index) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        children: [
+          Expanded(
+            flex: 4,
+            child: TextField(
+              controller: _pencuciControllers[index]['name'],
+              decoration: const InputDecoration(
+                labelText: 'Nama Pencuci',
+                border: OutlineInputBorder(),
+                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            flex: 3,
+            child: TextField(
+              controller: _pencuciControllers[index]['gram'],
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: 'Gram',
+                border: OutlineInputBorder(),
+                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            flex: 3,
+            child: TextField(
+              controller: _pencuciControllers[index]['pcs'],
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: 'Pcs',
+                border: OutlineInputBorder(),
+                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          IconButton(
+            icon: const Icon(Icons.delete, color: Colors.red),
+            onPressed: () {
+              _removePencuciEntry(index);
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -149,6 +251,17 @@ class _InputHasilCuciPageState extends State<InputHasilCuciPage> {
               _buildTextField('Gerinda', _gerindaController),
               _buildTextField('Karatan', _karatanController),
               _buildTextField('Hancuran', _hancuranController),
+              // Render dynamic pencuci entries
+              Column(
+                children: List.generate(_pencuciControllers.length, (index) {
+                  return _buildPencuciEntry(index);
+                }),
+              ),
+              TextButton.icon(
+                onPressed: _addPencuciEntry,
+                icon: const Icon(Icons.add),
+                label: const Text('Tambah Pencuci'),
+              ),
               if (_error != null)
                 Text(_error!, style: const TextStyle(color: Colors.red)),
               if (_success != null)
@@ -163,7 +276,62 @@ class _InputHasilCuciPageState extends State<InputHasilCuciPage> {
                     borderRadius: BorderRadius.circular(8),
                   ),
                 ),
-                onPressed: _isLoading ? null : _submitHasilCuci,
+onPressed: _isLoading
+    ? null
+    : () async {
+        // Validation: check if any required field is empty
+        if (_beratBersihController.text.trim().isEmpty ||
+            _kikisController.text.trim().isEmpty ||
+            _bubukController.text.trim().isEmpty ||
+            _gerindaController.text.trim().isEmpty ||
+            _karatanController.text.trim().isEmpty ||
+            _hancuranController.text.trim().isEmpty) {
+          setState(() {
+            _error = 'Semua field harus diisi sebelum submit.';
+            _success = null;
+          });
+          return;
+        }
+
+        // Validate pencuci entries: all fields must be filled
+        for (var entry in _pencuciControllers) {
+          if (entry['name']!.text.trim().isEmpty ||
+              entry['gram']!.text.trim().isEmpty ||
+              entry['pcs']!.text.trim().isEmpty) {
+            setState(() {
+              _error = 'Semua field pencuci harus diisi sebelum submit.';
+              _success = null;
+            });
+            return;
+          }
+        }
+
+        setState(() {
+          _error = null;
+        });
+
+        final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Konfirmasi'),
+            content: const Text(
+                'Apakah Anda yakin ingin menyimpan data ini?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Batal'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text('Ya'),
+              ),
+            ],
+          ),
+        );
+        if (confirmed == true) {
+          _submitHasilCuci();
+        }
+      },
                 child: _isLoading
                     ? const CircularProgressIndicator(color: Colors.white)
                     : const Text(

@@ -11,6 +11,15 @@ class InputPartaiPage extends StatefulWidget {
 class _InputPartaiPageState extends State<InputPartaiPage> {
   final TextEditingController _namaPartaiController = TextEditingController();
   final TextEditingController _namaBahanController = TextEditingController();
+  String? _selectedNamaBahan;
+  final List<String> _namaBahanOptions = [
+    'Mangkok Bulu Berat',
+    'Mangkok Bulu Sedang',
+    'Mangkok Plontos',
+    'Mangkok Patahan',
+    'Mangkok Oval',
+    'Mangkok Kakian',
+  ];
   final TextEditingController _beratAwalController = TextEditingController();
   final TextEditingController _penguranganController =
       TextEditingController(text: '10');
@@ -28,7 +37,7 @@ class _InputPartaiPageState extends State<InputPartaiPage> {
 
     try {
       final namaPartai = _namaPartaiController.text.trim();
-      final namaBahan = _namaBahanController.text.trim();
+      final namaBahan = _selectedNamaBahan?.trim() ?? '';
       final beratAwal = double.tryParse(_beratAwalController.text.trim());
 
       if (namaPartai.isEmpty || namaBahan.isEmpty || beratAwal == null) {
@@ -137,7 +146,53 @@ class _InputPartaiPageState extends State<InputPartaiPage> {
             child: Column(
               children: [
                 _buildTextField('Nama Partai', _namaPartaiController),
-                _buildTextField('Nama Bahan', _namaBahanController),
+                // Replace TextField with Dropdown for Nama Bahan
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Nama Bahan',
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                      const SizedBox(height: 4),
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(10),
+                          boxShadow: const [
+                            BoxShadow(
+                              color: Colors.black12,
+                              blurRadius: 4,
+                              offset: Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: SizedBox(
+                          height: 60,
+                          width: double.infinity,
+                          child: DropdownButtonFormField<String>(
+                            isExpanded: true,
+                            // Remove underline property as it is not supported
+                            value: _selectedNamaBahan,
+                            items: _namaBahanOptions
+                                .map((e) => DropdownMenuItem(value: e, child: Text(e)))
+                                .toList(),
+                            onChanged: (value) {
+                              setState(() {
+                                _selectedNamaBahan = value;
+                              });
+                            },
+                            decoration: const InputDecoration(
+                              border: InputBorder.none,
+                              contentPadding:
+                                  EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
                 _buildTextField('Berat Awal', _beratAwalController,
                     keyboardType: TextInputType.number),
                 _buildTextField(
@@ -157,7 +212,31 @@ class _InputPartaiPageState extends State<InputPartaiPage> {
                       borderRadius: BorderRadius.circular(8),
                     ),
                   ),
-                  onPressed: _isLoading ? null : _submitData,
+                  onPressed: _isLoading
+                      ? null
+                      : () async {
+                          final confirmed = await showDialog<bool>(
+                            context: context,
+                            builder: (context) => AlertDialog(
+                              title: const Text('Konfirmasi'),
+                              content: const Text(
+                                  'Apakah Anda yakin ingin menyimpan data ini?'),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.of(context).pop(false),
+                                  child: const Text('Batal'),
+                                ),
+                                TextButton(
+                                  onPressed: () => Navigator.of(context).pop(true),
+                                  child: const Text('Ya'),
+                                ),
+                              ],
+                            ),
+                          );
+                          if (confirmed == true) {
+                            _submitData();
+                          }
+                        },
                   child: _isLoading
                       ? const CircularProgressIndicator(color: Colors.white)
                       : const Text(

@@ -5,6 +5,8 @@ import 'package:walet_app/manager_list.dart';
 import 'input_partai.dart';
 import 'riwayat_owner.dart';
 import 'package:walet_app/login_page.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
 
 class OwnerPage extends StatelessWidget {
   const OwnerPage({super.key});
@@ -40,6 +42,7 @@ class _WalletListScreenState extends State<WalletListScreen> {
   DateTime? _startDate;
   DateTime? _endDate;
   bool _isFilteringByDate = false;
+  String _searchQuery = '';
 
   Stream<QuerySnapshot> get _walletStream {
     Query collection = FirebaseFirestore.instance
@@ -85,8 +88,11 @@ class _WalletListScreenState extends State<WalletListScreen> {
       backgroundColor: Colors.grey[100],
       appBar: AppBar(
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () {
+          icon: const Icon(Icons.logout, color: Colors.white),
+          onPressed: () async {
+            final prefs = await SharedPreferences.getInstance();
+            await prefs.remove('username');
+            await prefs.remove('role');
             Navigator.pushReplacement(
               context,
               MaterialPageRoute(builder: (_) => const LoginPage()),
@@ -108,6 +114,20 @@ class _WalletListScreenState extends State<WalletListScreen> {
             },
           ),
           IconButton(
+            icon: const Icon(Icons.search, color: Colors.white),
+            onPressed: () async {
+              final searchResult = await showSearch<String>(
+                context: context,
+                delegate: _PartaiSearchDelegate(),
+              );
+              if (searchResult != null) {
+                setState(() {
+                  _searchQuery = searchResult;
+                });
+              }
+            },
+          ),
+          IconButton(
             icon: const Icon(Icons.filter_alt, color: Colors.white),
             onPressed: () {
               _showDateFilterDialog();
@@ -117,18 +137,36 @@ class _WalletListScreenState extends State<WalletListScreen> {
             icon: const Icon(Icons.add, color: Colors.white),
             onPressed: () {
               _showAddConfirmation();
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const InputPartaiPage()),
-              );
             },
           ),
         ],
-      ),
+    ),
       body: Column(
         children: [
           _buildFilterTabs(),
           if (_isFilteringByDate) _buildDateFilterChip(),
+          if (_searchQuery.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Hasil pencarian: "$_searchQuery"',
+                      style: const TextStyle(fontStyle: FontStyle.italic),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.clear),
+                    onPressed: () {
+                      setState(() {
+                        _searchQuery = '';
+                      });
+                    },
+                  ),
+                ],
+              ),
+            ),
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
               stream: _walletStream,
@@ -140,7 +178,15 @@ class _WalletListScreenState extends State<WalletListScreen> {
                   return const Center(child: Text('Tidak ada data wallet'));
                 }
 
-                final filteredDocs = _filterDocumentsByDate(snapshot.data!.docs);
+                final filteredDocsByDate = _filterDocumentsByDate(snapshot.data!.docs);
+
+                final filteredDocs = _searchQuery.isNotEmpty
+                    ? filteredDocsByDate.where((doc) {
+                        final data = doc.data() as Map<String, dynamic>;
+                        final namaPartai = (data['nama_partai'] ?? '').toString().toLowerCase();
+                        return namaPartai.contains(_searchQuery.toLowerCase());
+                      }).toList()
+                    : filteredDocsByDate;
 
                 if (filteredDocs.isEmpty) {
                   return const Center(child: Text('Tidak ada data wallet dalam rentang tanggal yang dipilih'));
@@ -282,7 +328,6 @@ class _WalletListScreenState extends State<WalletListScreen> {
   }
 
   void _showAddConfirmation() {
-    // Removed alert dialog as per user request
     Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => const InputPartaiPage()),
@@ -393,6 +438,12 @@ class _WalletListScreenState extends State<WalletListScreen> {
                 ),
               ),
             ),
+            IconButton(
+              icon: const Icon(Icons.delete, color: Colors.red),
+              onPressed: () {
+                _confirmDeleteDialog(context, id);
+              },
+            ),
             const SizedBox(width: 5),
             const Icon(Icons.chevron_right),
           ],
@@ -418,5 +469,90 @@ class _WalletListScreenState extends State<WalletListScreen> {
     setState(() {
       _currentFilter = status;
     });
+  }
+
+  void _confirmDeleteDialog(BuildContext context, String id) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Konfirmasi Penghapusan'),
+          content: const Text('Apakah Anda yakin ingin menghapus partai ini?'),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Batal'),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+            TextButton(
+              child: const Text('Hapus'),
+              onPressed: () async {
+                Navigator.of(context).pop();
+                await _deletePartai(id);
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _deletePartai(String id) async {
+    try {
+      await FirebaseFirestore.instance.collection('partai').doc(id).delete();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Partai berhasil dihapus')),
+      );
+      setState(() {});
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gagal menghapus partai: $e')),
+      );
+    }
+  }
+}
+
+class _PartaiSearchDelegate extends SearchDelegate<String> {
+  @override
+  String get searchFieldLabel => 'Cari nama partai';
+
+  @override
+  List<Widget>? buildActions(BuildContext context) {
+    return [
+      if (query.isNotEmpty)
+        IconButton(
+          icon: const Icon(Icons.clear),
+          onPressed: () {
+            query = '';
+            showSuggestions(context);
+          },
+        ),
+    ];
+  }
+
+  @override
+  Widget? buildLeading(BuildContext context) {
+    return IconButton(
+      icon: const Icon(Icons.arrow_back),
+      onPressed: () {
+        close(context, '');
+      },
+    );
+  }
+
+  @override
+  void showResults(BuildContext context) {
+    close(context, query);
+  }
+
+  @override
+  Widget buildResults(BuildContext context) {
+    return Container();
+  }
+
+  @override
+  Widget buildSuggestions(BuildContext context) {
+    return Container();
   }
 }
