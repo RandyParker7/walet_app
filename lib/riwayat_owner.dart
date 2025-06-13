@@ -39,24 +39,30 @@ class RiwayatOwnerPage extends StatelessWidget {
               items: {
                 'Nama Partai': data['nama_partai'],
                 'Nama Bahan': data['nama_bahan'],
-                'Berat Awal': data['berat_awal'],
-                'Pengurangan Pengeringan': data['pengurangan_pengeringan'],
+                'Berat Awal': data['berat_awal'] != null ? '${data['berat_awal']} gram' : '-',
+                'Pengurangan Pengeringan': data['pengurangan_pengeringan'] != null ? '${data['pengurangan_pengeringan']} gram' : '-',
                 'Tanggal Masuk': _formatDate(data['created_at']),
               },
             ),
             const SizedBox(height: 20),
-            if (status == 'Sudah Diproses')
+            if (status == 'Sudah Diproses') ...[
               _buildInfoCard(
                 title: 'Hasil Pencucian',
                 items: {
-                  'Berat Bersih': hasilCuci['berat_bersih'],
-                  'Berat Kikis': hasilCuci['kikis'],
-                  'Berat Bubuk': hasilCuci['bubuk'],
-                  'Berat Gerinda': hasilCuci['gerinda'],
-                  'Berat Karatan': hasilCuci['karatan'],
+                  'Berat Bersih': hasilCuci['berat_bersih'] != null ? '${hasilCuci['berat_bersih']} gram' : '-',
+                  'Berat Kikis': hasilCuci['kikis'] != null ? '${hasilCuci['kikis']} gram' : '-',
+                  'Berat Bubuk': hasilCuci['bubuk'] != null ? '${hasilCuci['bubuk']} gram' : '-',
+                  'Berat Gerinda': hasilCuci['gerinda'] != null ? '${hasilCuci['gerinda']} gram' : '-',
+                  'Berat Karatan': hasilCuci['karatan'] != null ? '${hasilCuci['karatan']} gram' : '-',
                   'Tanggal Selesai Pencucian': _formatDate(data['updated_at']),
+                  'Manager': data['manager_username'] ?? '-',
                 },
               ),
+              _buildPencuciCard(
+                title: 'Pencuci',
+                pencuciList: (data['pencuci'] as List<dynamic>?) ?? [],
+              ),
+            ],
           ],
         ),
       ),
@@ -108,6 +114,51 @@ class RiwayatOwnerPage extends StatelessWidget {
                     ],
                   ),
                 )),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPencuciCard({required String title, required List<dynamic> pencuciList}) {
+    return Card(
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      color: Colors.white,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF4355B9),
+              ),
+            ),
+            const SizedBox(height: 12),
+            if (pencuciList.isEmpty)
+              const Text(
+                '-',
+                style: TextStyle(fontSize: 16, color: Colors.black54),
+              )
+            else
+              ...pencuciList.asMap().entries.map((entry) {
+                final index = entry.key;
+                final e = entry.value;
+                final name = e['name'] ?? '';
+                final gram = e['gram'] ?? 0;
+                final pcs = e['pcs'] ?? 0;
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Text(
+                    'Pencuci ${index + 1}: $name, $gram gram, $pcs pcs',
+                    style: const TextStyle(fontSize: 16, color: Colors.black87),
+                  ),
+                );
+              }).toList(),
           ],
         ),
       ),

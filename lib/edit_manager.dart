@@ -1,22 +1,30 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'manager_list.dart';
 
-class AddManagerPage extends StatefulWidget {
-  const AddManagerPage({Key? key}) : super(key: key);
+class EditManagerPage extends StatefulWidget {
+  final String managerId;
+  final String currentUsername;
+
+  const EditManagerPage({Key? key, required this.managerId, required this.currentUsername}) : super(key: key);
 
   @override
-  _AddManagerPageState createState() => _AddManagerPageState();
+  _EditManagerPageState createState() => _EditManagerPageState();
 }
 
-class _AddManagerPageState extends State<AddManagerPage> {
+class _EditManagerPageState extends State<EditManagerPage> {
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   bool _isLoading = false;
   String? _error;
   String? _success;
 
-  Future<void> _addManager() async {
+  @override
+  void initState() {
+    super.initState();
+    _nameController.text = widget.currentUsername;
+  }
+
+  Future<void> _updateManager() async {
     setState(() {
       _isLoading = true;
       _error = null;
@@ -26,41 +34,48 @@ class _AddManagerPageState extends State<AddManagerPage> {
     final name = _nameController.text.trim();
     final password = _passwordController.text.trim();
 
-    if (name.isEmpty || password.isEmpty) {
+    if (name.isEmpty) {
       setState(() {
-        _error = 'Nama dan password harus diisi';
+        _error = 'Nama harus diisi';
         _isLoading = false;
       });
       return;
     }
 
     try {
-      final query = await FirebaseFirestore.instance
-          .collection('users')
-          .where('username', isEqualTo: name)
-          .limit(1)
-          .get();
+      if (name != widget.currentUsername) {
+        final query = await FirebaseFirestore.instance
+            .collection('users')
+            .where('username', isEqualTo: name)
+            .limit(1)
+            .get();
 
-      if (query.docs.isNotEmpty) {
-        setState(() {
-          _error = 'Nama sudah digunakan';
-          _isLoading = false;
-        });
-        return;
+        if (query.docs.isNotEmpty) {
+          setState(() {
+            _error = 'Nama sudah digunakan';
+            _isLoading = false;
+          });
+          return;
+        }
       }
 
-      await FirebaseFirestore.instance.collection('users').add({
+      Map<String, dynamic> updateData = {
         'username': name,
-        'password': password,
-        'role': 'manager',
-      });
+      };
+      if (password.isNotEmpty) {
+        updateData['password'] = password;
+      }
+
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(widget.managerId)
+          .update(updateData);
 
       setState(() {
-        _success = 'Manager berhasil ditambahkan';
-        _nameController.clear();
-        _passwordController.clear();
+        _success = 'Manager berhasil diperbarui';
       });
-      // Navigate back to manager list page after adding
+
+      await Future.delayed(const Duration(seconds: 1));
       if (mounted) {
         Navigator.of(context).pop();
       }
@@ -97,11 +112,11 @@ class _AddManagerPageState extends State<AddManagerPage> {
           child: TextField(
             controller: controller,
             obscureText: obscure,
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               fillColor: Colors.white,
               filled: true,
               border: InputBorder.none,
-              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
             ),
           ),
         ),
@@ -113,34 +128,26 @@ class _AddManagerPageState extends State<AddManagerPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
       appBar: AppBar(
-        toolbarHeight: 80,
-        title: const Padding(
-          padding: EdgeInsets.only(top: 16),
-          child: Text(
-            'Add Manager',
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 32,
-            ),
-          ),
+        title: const Text('Edit Manager'),
+        backgroundColor: const Color(0xFF4355B9),
+        foregroundColor: Colors.white,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () {
+            Navigator.of(context).pop();
+          },
         ),
-        backgroundColor: Colors.white,
-        elevation: 0,
-        centerTitle: true,
-        foregroundColor: Colors.black,
       ),
+      backgroundColor: Colors.white,
       body: Center(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 32.0),
           child: SingleChildScrollView(
             child: Column(
               children: [
-                //_title removed because AppBar has title now
-                const SizedBox(height: 40),
                 _buildTextField('Nama', _nameController),
-                _buildTextField('Password', _passwordController, obscure: true),
+                _buildTextField('Password (kosongkan jika tidak ingin mengubah)', _passwordController, obscure: true),
                 if (_error != null)
                   Text(
                     _error!,
@@ -154,16 +161,14 @@ class _AddManagerPageState extends State<AddManagerPage> {
                 const SizedBox(height: 12),
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.indigo[900],
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 24, vertical: 12),
+                    backgroundColor: const Color(0xFF4355B9),
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                   ),
-                  onPressed: _isLoading ? null : _addManager,
+                  onPressed: _isLoading ? null : _updateManager,
                   child: _isLoading
-                      ? const CircularProgressIndicator(
-                          color: Colors.white, strokeWidth: 2)
+                      ? const CircularProgressIndicator(color: Colors.white, strokeWidth: 2)
                       : const Text(
-                          'Confirm',
+                          'Update',
                           style: TextStyle(color: Colors.white),
                         ),
                 ),

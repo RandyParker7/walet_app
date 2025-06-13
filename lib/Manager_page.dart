@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:walet_app/login_page.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'riwayat_manager.dart';
 
 class ManagerPage extends StatelessWidget {
-  const ManagerPage({super.key});
+  final String username;
+
+  const ManagerPage({super.key, required this.username});
 
   Stream<QuerySnapshot> get _unprocessedPartaiStream {
     return FirebaseFirestore.instance
@@ -20,8 +23,11 @@ class ManagerPage extends StatelessWidget {
       backgroundColor: const Color(0xFFF0F2F5),
       appBar: AppBar(
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () {
+          icon: const Icon(Icons.logout, color: Colors.white),
+          onPressed: () async {
+            final prefs = await SharedPreferences.getInstance();
+            await prefs.remove('username');
+            await prefs.remove('role');
             Navigator.pushReplacement(
               context,
               MaterialPageRoute(builder: (_) => const LoginPage()),
@@ -70,7 +76,7 @@ class ManagerPage extends StatelessWidget {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => RiwayatManagerPage(id: doc.id, data: data),
+                        builder: (_) => RiwayatManagerPage(id: doc.id, data: data, username: username),
                       ),
                     );
                   },
