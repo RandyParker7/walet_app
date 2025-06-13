@@ -184,7 +184,9 @@ class _WalletListScreenState extends State<WalletListScreen> {
                     ? filteredDocsByDate.where((doc) {
                         final data = doc.data() as Map<String, dynamic>;
                         final namaPartai = (data['nama_partai'] ?? '').toString().toLowerCase();
-                        return namaPartai.contains(_searchQuery.toLowerCase());
+                        final managerUsername = (data['manager_username'] ?? '').toString().toLowerCase();
+                        final queryLower = _searchQuery.toLowerCase();
+                        return namaPartai.contains(queryLower) || managerUsername.contains(queryLower);
                       }).toList()
                     : filteredDocsByDate;
 
@@ -515,7 +517,7 @@ class _WalletListScreenState extends State<WalletListScreen> {
 
 class _PartaiSearchDelegate extends SearchDelegate<String> {
   @override
-  String get searchFieldLabel => 'Cari nama partai';
+  String get searchFieldLabel => 'Cari nama partai atau nama manager';
 
   @override
   List<Widget>? buildActions(BuildContext context) {
