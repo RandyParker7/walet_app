@@ -1,54 +1,43 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'add_manager.dart';
-import 'edit_manager.dart';
-import 'karyawan_list.dart';
+import 'add_karyawan.dart';
+import 'edit_karyawan.dart';
 
-class ManagerListPage extends StatefulWidget {
-  const ManagerListPage({super.key});
+class KaryawanListPage extends StatefulWidget {
+  const KaryawanListPage({super.key});
 
   @override
-  State<ManagerListPage> createState() => _ManagerListPageState();
+  State<KaryawanListPage> createState() => _KaryawanListPageState();
 }
 
-class _ManagerListPageState extends State<ManagerListPage> {
-  Stream<QuerySnapshot> _managerStream = FirebaseFirestore.instance
+class _KaryawanListPageState extends State<KaryawanListPage> {
+  Stream<QuerySnapshot> _karyawanStream = FirebaseFirestore.instance
       .collection('users')
-      .where('role', isEqualTo: 'manager')
+      .where('role', isEqualTo: 'karyawan')
       .snapshots();
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Daftar Manager',
+        title: const Text('Daftar Karyawan',
             style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         backgroundColor: const Color(0xFF4355B9),
         foregroundColor: Colors.white,
         actions: [
           IconButton(
-            icon: const Icon(Icons.list_alt, color: Colors.white),
-            tooltip: 'Daftar Karyawan',
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const KaryawanListPage()),
-              );
-            },
-          ),
-          IconButton(
             icon: const Icon(Icons.add, color: Colors.white),
             onPressed: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (_) => const AddManagerPage()),
+                MaterialPageRoute(builder: (_) => const AddKaryawanPage()),
               );
             },
           ),
         ],
       ),
       body: StreamBuilder<QuerySnapshot>(
-        stream: _managerStream,
+        stream: _karyawanStream,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
@@ -58,28 +47,29 @@ class _ManagerListPageState extends State<ManagerListPage> {
             return Center(child: Text('Terjadi kesalahan: ${snapshot.error}'));
           }
 
-          final managers = snapshot.data?.docs ?? [];
-          managers.sort((a, b) {
+          final karyawans = snapshot.data?.docs ?? [];
+          karyawans.sort((a, b) {
             final aData = a.data() as Map<String, dynamic>;
             final bData = b.data() as Map<String, dynamic>;
             final aName = aData['username']?.toString().toLowerCase() ?? '';
             final bName = bData['username']?.toString().toLowerCase() ?? '';
             return aName.compareTo(bName);
           });
-          if (managers.isEmpty) {
-            return const Center(child: Text('Tidak ada manager yang ditemukan.'));
+          if (karyawans.isEmpty) {
+            return const Center(child: Text('Tidak ada karyawan yang ditemukan.'));
           }
 
           return ListView.builder(
-            itemCount: managers.length,
+            itemCount: karyawans.length,
             itemBuilder: (context, index) {
-              final managerDoc = managers[index];
-              final manager = managerDoc.data() as Map<String, dynamic>;
+              final karyawanDoc = karyawans[index];
+              final karyawan = karyawanDoc.data() as Map<String, dynamic>;
               return Card(
                 margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 child: ListTile(
                   leading: const Icon(Icons.person, color: Colors.indigo),
-                  title: Text(manager['username'] ?? 'Tanpa nama'),
+                  title: Text(karyawan['username'] ?? 'Tanpa nama'),
+                  subtitle: Text('Jumlah Partai Dicuci: ${karyawan['counter'] ?? 0}'),
                   trailing: SizedBox(
                     width: 96,
                     child: Row(
@@ -91,9 +81,9 @@ class _ManagerListPageState extends State<ManagerListPage> {
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (_) => EditManagerPage(
-                                  managerId: managerDoc.id,
-                                  currentUsername: manager['username'] ?? '',
+                                builder: (_) => EditKaryawanPage(
+                                  karyawanId: karyawanDoc.id,
+                                  currentUsername: karyawan['username'] ?? '',
                                 ),
                               ),
                             );
@@ -106,7 +96,7 @@ class _ManagerListPageState extends State<ManagerListPage> {
                               context: context,
                               builder: (context) => AlertDialog(
                                 title: const Text('Konfirmasi Hapus'),
-                                content: const Text('Apakah Anda yakin ingin menghapus manager ini?'),
+                                content: const Text('Apakah Anda yakin ingin menghapus karyawan ini?'),
                                 actions: [
                                   TextButton(
                                     onPressed: () => Navigator.of(context).pop(false),
@@ -123,14 +113,14 @@ class _ManagerListPageState extends State<ManagerListPage> {
                               try {
                                 await FirebaseFirestore.instance
                                     .collection('users')
-                                    .doc(managerDoc.id)
+                                    .doc(karyawanDoc.id)
                                     .delete();
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('Manager berhasil dihapus')),
+                                  const SnackBar(content: Text('Karyawan berhasil dihapus')),
                                 );
                               } catch (e) {
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text('Gagal menghapus manager: $e')),
+                                  SnackBar(content: Text('Gagal menghapus karyawan: $e')),
                                 );
                               }
                             }
