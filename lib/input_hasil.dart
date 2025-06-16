@@ -22,6 +22,7 @@ class _InputHasilCuciPageState extends State<InputHasilCuciPage> {
   // List to hold dynamic pencuci entries
   List<Map<String, TextEditingController>> _pencuciControllers = [];
 
+  List<String> _karyawanList = [];
   bool _isLoading = false;
   String? _error;
   String? _success;
@@ -31,6 +32,26 @@ class _InputHasilCuciPageState extends State<InputHasilCuciPage> {
     super.initState();
     // Initialize with one empty pencuci entry
     _addPencuciEntry();
+    _fetchKaryawanList();
+  }
+
+  Future<void> _fetchKaryawanList() async {
+    try {
+      final querySnapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .where('role', isEqualTo: 'karyawan')
+          .get();
+
+      setState(() {
+        _karyawanList = querySnapshot.docs
+            .map((doc) => (doc.data() as Map<String, dynamic>)['username'] as String)
+            .toList();
+      });
+    } catch (e) {
+      setState(() {
+        _error = 'Gagal memuat daftar karyawan: $e';
+      });
+    }
   }
 
   void _addPencuciEntry() {
@@ -102,6 +123,24 @@ class _InputHasilCuciPageState extends State<InputHasilCuciPage> {
         'updated_at': Timestamp.now(),
       });
 
+      // Increment counter for each karyawan in pencuciList
+      for (var pencuci in pencuciList) {
+        final karyawanName = pencuci['name'];
+        final karyawanQuery = await FirebaseFirestore.instance
+            .collection('users')
+            .where('username', isEqualTo: karyawanName)
+            .limit(1)
+            .get();
+        if (karyawanQuery.docs.isNotEmpty) {
+          final karyawanDoc = karyawanQuery.docs.first;
+          final currentCount = (karyawanDoc.data()['counter'] ?? 0) as int;
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(karyawanDoc.id)
+              .update({'counter': currentCount + 1});
+        }
+      }
+
       setState(() {
         _success = 'Hasil cuci berhasil disimpan';
         _beratBersihController.clear();
@@ -169,18 +208,69 @@ class _InputHasilCuciPageState extends State<InputHasilCuciPage> {
   }
 
   Widget _buildPencuciEntry(int index) {
+    // Get list of selected names excluding current index
+    List<String> selectedNames = _pencuciControllers
+        .asMap()
+        .entries
+        .where((entry) => entry.key != index)
+        .map((entry) => entry.value['name']!.text)
+        .where((name) => name.isNotEmpty)
+        .toList();
+
+    // Filter karyawan list to exclude selected names
+    List<String> availableNames = _karyawanList
+        .where((name) => !selectedNames.contains(name))
+        .toList();
+
+    availableNames.sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
         children: [
           Expanded(
             flex: 4,
-            child: TextField(
-              controller: _pencuciControllers[index]['name'],
-              decoration: const InputDecoration(
-                labelText: 'Nama Pencuci',
-                border: OutlineInputBorder(),
-                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+            child: GestureDetector(
+              onTap: () async {
+                final selectedName = await showDialog<String>(
+                  context: context,
+                  builder: (context) {
+                    return AlertDialog(
+                      title: const Center(child: Text('Pilih Nama Karyawan')),
+                      content: SizedBox(
+                        width: double.maxFinite,
+                        child: ListView.builder(
+                          shrinkWrap: true,
+                          itemCount: availableNames.length,
+                          itemBuilder: (context, i) {
+                            return ListTile(
+                              title: Text(availableNames[i]),
+                              onTap: () {
+                                Navigator.of(context).pop(availableNames[i]);
+                              },
+                            );
+                          },
+                        ),
+                      ),
+                    );
+                  },
+                );
+                if (selectedName != null) {
+                  setState(() {
+                    _pencuciControllers[index]['name']!.text = selectedName;
+                  });
+                }
+              },
+              child: AbsorbPointer(
+                child: TextField(
+                  controller: _pencuciControllers[index]['name'],
+                  readOnly: true,
+                  decoration: InputDecoration(
+                    labelText: 'Nama',
+                    border: OutlineInputBorder(),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                  ),
+                ),
               ),
             ),
           ),
